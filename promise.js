@@ -9,8 +9,6 @@ class _Promise {
             callback(this._resolve.bind(this), this._reject.bind(this));
         } catch (e) {
             this._reject(e);
-            // NOTE: throw manually in case rejected in callback and thus _reject() did not throw
-            throw e;
         }
     }
 
@@ -19,6 +17,7 @@ class _Promise {
     }
 
     static reject(error) {
+        // TODO!: _Promise.reject(6).then(console.info, console.warn) must not result in error. async (resolve, reject)?
         return new _Promise((resolve, reject) => reject(error));
     }
 
@@ -92,18 +91,22 @@ class _Promise {
         });
     }
 
-    _chain(callback, {resolve, reject}) {
+    _chain(callback, {resolve, reject}, defaultSettler) {
         if (!callback) {
             return false;
         }
         // always execute in another loop tick according to the spec
         setTimeout(() => {
             try {
-                const result = callback(this.value);
-                if (this._isThenable(result)) {
-                    result.then(resolve);
+                if (callback && typeof callback === 'function') {
+                    const result = callback(this.value);
+                    if (this._isThenable(result)) {
+                        result.then(resolve, reject);
+                    } else {
+                        resolve(result);
+                    }
                 } else {
-                    resolve(result);
+                    defaultSettler(this.value);
                 }
             } catch (e) {
                 reject(e);
@@ -117,47 +120,57 @@ class _Promise {
     }
 
     _isThenable(obj) {
+        // TODO: retrieving a property might throw, need to reject then
         return obj && obj.then && obj.then === 'function';
     }
 
     _reject(error) {
-        // TODO: freeze properties
-        if (!this._isSettled) {
-            this.state = 'rejected';
-            this.value = error;
-
+        const subscribers = this._settle(error, 'rejected');
+        if (subscribers) {
             let handlerCount = 0
-            for (const subscriber of this.subscribers) {
+            for (const subscriber of subscribers) {
                 const processed = this._rejectChained(subscriber);
                 handlerCount += processed ? 1 : 0;
             }
-            this.subscribers = [];
 
             if (!handlerCount) {
                 // no error handlers specified => unhandled in promise
-                throw error;
+                console.error('Unhandled in promise:');
+                console.error(error);
             }
         }
     }
 
     _rejectChained(subscriber) {
-        return this._chain(subscriber.errorCallback, subscriber);
+        return this._chain(subscriber.errorCallback, subscriber, subscriber.reject);
     }
 
     _resolve(value) {
-        // TODO: freeze properties
-        if (!this._isSettled) {
-            this.state = 'fulfilled';
-            this.value = value;
-
-            for (const subscriber of this.subscribers) {
+        const subscribers = this._settle(value, 'fulfilled');
+        if (subscribers) {
+            for (const subscriber of subscribers) {
                 this._resolveChained(subscriber);
             }
-            this.subscribers = [];
         }
     }
 
     _resolveChained(subscriber) {
-        return this._chain(subscriber.resultCallback, subscriber);
+        return this._chain(subscriber.resultCallback, subscriber, subscriber.resolve);
+    }
+
+    _settle(value, state) {
+        if (!this._isSettled) {
+            if (value === this) {
+                this._reject(new TypeError('Cannot settle a promise with itself as a value.'));
+                return undefined;
+            }
+            this.value = value;
+            this.state = state;
+            const subscribers = this.subscribers;
+            this.subscribers = [];
+            Object.freeze(this);
+            return subscribers;
+        }
+        return undefined;;
     }
 }
