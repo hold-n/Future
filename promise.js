@@ -1,3 +1,5 @@
+// TODO!: test
+
 class _Promise {
 
     constructor(callback) {
@@ -62,6 +64,11 @@ class _Promise {
         });
     }
 
+    static _isThenable(obj) {
+        // TODO: retrieving a property might throw, need to reject then
+        return obj && obj.then && obj.then === 'function';
+    }
+
     catch(errorCallback) {
         return this.then(null, errorCallback);
     }
@@ -100,7 +107,7 @@ class _Promise {
             try {
                 if (callback && typeof callback === 'function') {
                     const result = callback(this.value);
-                    if (this._isThenable(result)) {
+                    if (_Promise._isThenable(result)) {
                         result.then(resolve, reject);
                     } else {
                         resolve(result);
@@ -117,11 +124,6 @@ class _Promise {
 
     get _isSettled() {
         return this.state !== 'pending';
-    }
-
-    _isThenable(obj) {
-        // TODO: retrieving a property might throw, need to reject then
-        return obj && obj.then && obj.then === 'function';
     }
 
     _reject(error) {
