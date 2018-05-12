@@ -1,6 +1,6 @@
 // TODO!: test
 
-class _Promise {
+class Future {
 
     constructor(callback) {
         this.state = 'pending';
@@ -15,21 +15,21 @@ class _Promise {
     }
 
     static resolve(value) {
-        return new _Promise(resolve => resolve(value));
+        return new Future(resolve => resolve(value));
     }
 
     static reject(error) {
-        // TODO!: _Promise.reject(6).then(console.info, console.warn) must not result in error. async (resolve, reject)?
-        return new _Promise((resolve, reject) => reject(error));
+        // TODO!: Future.reject(6).then(console.info, console.warn) must not result in error. async (resolve, reject)?
+        return new Future((resolve, reject) => reject(error));
     }
 
     static all(promises) {
         promises = promises || [];
         if (!promises.length) {
-            return _Promise.resolve([]);
+            return Future.resolve([]);
         }
 
-        return new _Promise((resolve, reject) => {
+        return new Future((resolve, reject) => {
             const result = [];
             let counter = 0;
             for (let i = 0; i < promises.length; i++) {
@@ -53,7 +53,7 @@ class _Promise {
     }
 
     static race(promises) {
-        return new _Promise((resolve, reject) => {
+        return new Future((resolve, reject) => {
             for (const promise of promises || []) {
                 if (this._isThenable(promise)) {
                     promise.then(resolve, reject);
@@ -84,7 +84,7 @@ class _Promise {
     }
 
     then(resultCallback, errorCallback) {
-        return new _Promise((resolve, reject) => {
+        return new Future((resolve, reject) => {
             const subscriber = {resolve, reject, resultCallback, errorCallback};
             if (this._isSettled) {
                 if (this.state === 'fulfilled') {
@@ -107,7 +107,7 @@ class _Promise {
             try {
                 if (callback && typeof callback === 'function') {
                     const result = callback(this.value);
-                    if (_Promise._isThenable(result)) {
+                    if (Future._isThenable(result)) {
                         result.then(resolve, reject);
                     } else {
                         resolve(result);
